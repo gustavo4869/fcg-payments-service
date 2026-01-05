@@ -1,0 +1,7 @@
+﻿################################################################################
+# Este arquivo .gitignore foi criado automaticamente pelo Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs/Fcg.Payments/FileContentIndex
+/.vs/Fcg.Payments/CopilotIndices/17.14.734.62261
+/Fcg.Payments.Api/obj
