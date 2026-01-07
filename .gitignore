@@ -5,3 +5,6 @@
 /.vs/Fcg.Payments/FileContentIndex
 /.vs/Fcg.Payments/CopilotIndices/17.14.734.62261
 /Fcg.Payments.Api/obj
+/.vs
+/Fcg.Payments.Api/bin/Debug/net10.0
+/Fcg.Payments.Api/Fcg.Payments.Api.csproj.Backup.tmp
