@@ -1,32 +1,32 @@
-Fcg Payments Service
+ï»¿Fcg Payments Service
 ====================
 
 Resumo
 ------
-Projeto exemplo de um serviço de pagamentos minimalista implementado em .NET 10. Ele contém:
+Projeto exemplo de um serviÃ§o de pagamentos minimalista implementado em .NET 10. Ele contÃ©m:
 
 - `Fcg.Payments.Api`: uma API minimal com endpoints para criar/consultar/reprocessar pagamentos e um endpoint para consultar o Event Store.
-- `Fcg.Payments.Functions`: um host Azure Functions (timer trigger) que processa pagamentos pendentes (simulação).
-- Persistência usando EF Core + SQLite (migrations incluídas).
-- Event Store (tabela `Events`) onde todos os eventos do domínio são append-only.
+- `Fcg.Payments.Functions`: um host Azure Functions (timer trigger) que processa pagamentos pendentes (simulaÃ§Ã£o).
+- PersistÃªncia usando EF Core + SQLite (migrations incluÃ­das).
+- Event Store (tabela `Events`) onde todos os eventos do domÃ­nio sÃ£o append-only.
 
-Objetivo: demonstrar um fluxo de pagamentos orientado a eventos com processamento assíncrono e reprocessamento.
+Objetivo: demonstrar um fluxo de pagamentos orientado a eventos com processamento assÃ­ncrono e reprocessamento.
 
-Visualização (diagramas)
+VisualizaÃ§Ã£o (diagramas)
 ------------------------
-Incluí dois diagramas em `mermaid` para facilitar a visualização do fluxo e da arquitetura. Se o visualizador não renderizar `mermaid`, há um diagrama ASCII de fallback abaixo.
+IncluÃ­ dois diagramas em `mermaid` para facilitar a visualizaÃ§Ã£o do fluxo e da arquitetura. Se o visualizador nÃ£o renderizar `mermaid`, hÃ¡ um diagrama ASCII de fallback abaixo.
 
 Diagrama de arquitetura (Mermaid - flowchart)
 
 ```mermaid
 flowchart LR
   Client[Client]
-  API[`Fcg.Payments.Api\n(Minimal API)`]
-  Repo[`PagamentoRepository\n(EF Core) -> Pagamentos table`]
-  EventStore[`EfEventStore\n(Events table)`]
+  API["Fcg.Payments.Api<br/>(Minimal API)"]
+  Repo["PagamentoRepository<br/>(EF Core) &rarr; Pagamentos table"]
+  EventStore["EfEventStore<br/>(Events table)"]
   DB["Shared DB (SQLite)"]
-  Functions[`Fcg.Payments.Functions\n(Timer Trigger)`]
-  Consumers["Other consumers\n(projections, analytics)"]
+  Functions["Fcg.Payments.Functions<br/>(Timer Trigger)"]
+  Consumers["Other consumers<br/>(projections, analytics)"]
 
   Client -->|HTTP POST /payments| API
   API --> Repo
@@ -46,15 +46,15 @@ flowchart LR
   DB -.-> Backend
 ```
 
-Fluxo de comunicação (Mermaid - sequence)
+Fluxo de comunicaÃ§Ã£o (Mermaid - sequence)
 
 ```mermaid
 sequenceDiagram
   participant C as Client
   participant A as API
-  participant R as Repositório (DB)
+  participant R as Repositorio\n(DB)
   participant E as EventStore
-  participant P as Processador (Hosted/Function)
+  participant P as Processador\n(Hosted/Function)
 
   C->>A: POST /payments (body + X-Correlation-ID?)
   A->>R: INSERT Pagamento (Status=Requested)
@@ -67,7 +67,7 @@ sequenceDiagram
   P->>E: APPEND PaymentSucceeded/PaymentFailed (payload, correlationId)
 ```
 
-Fallback ASCII (se `mermaid` não renderizar)
+Fallback ASCII (se `mermaid` nÃ£o renderizar)
 
  Client
    |
@@ -84,25 +84,25 @@ Fallback ASCII (se `mermaid` não renderizar)
  v                v
 `Fcg.Payments.Functions`  Other consumers (projections, analytics)
 
-Melhorias de visualização
+Melhorias de visualizaÃ§Ã£o
 -------------------------
 - `mermaid` permite gerar diagramas diretamente no `README.md` em plataformas que o suportam (GitHub, VS Code Markdown Preview com plugin, etc.).
-- Se desejar, eu posso gerar uma imagem PNG/SVG dos diagramas e adicioná-la ao repositório (em `docs/`), para garantir renderização em qualquer visualizador.
+- Se desejar, eu posso gerar uma imagem PNG/SVG dos diagramas e adicionÃ¡-la ao repositÃ³rio (em `docs/`), para garantir renderizaÃ§Ã£o em qualquer visualizador.
 
-Próximos passos sugeridos
+PrÃ³ximos passos sugeridos
 -------------------------
-- Deseja que eu gere imagens (`PNG`/`SVG`) dos dois diagramas e as adicione em `docs/`? Isso garante compatibilidade de visualização em todos os navegadores e plataformas.
-- Quer que eu adicione um diagrama mais detalhado (ex.: deploy, redes, portas, containers, GitHub Actions) ou mantenha o nível atual?
+- Deseja que eu gere imagens (`PNG`/`SVG`) dos dois diagramas e as adicione em `docs/`? Isso garante compatibilidade de visualizaÃ§Ã£o em todos os navegadores e plataformas.
+- Quer que eu adicione um diagrama mais detalhado (ex.: deploy, redes, portas, containers, GitHub Actions) ou mantenha o nÃ­vel atual?
 
 Componentes principais
 ----------------------
 - `Pagamento` (entidade): representa um pagamento com campos `Id`, `UserId`, `GameId`, `Amount`, `Status`, `DataCriacao`.
-  - Status possíveis: `Requested (1)`, `Succeeded (2)`, `Failed (3)`.
-- Repositório: `IPagamentoRepository` / `PagamentoRepository` usando `PagamentoDbContext` (EF Core).
+  - Status possÃ­veis: `Requested (1)`, `Succeeded (2)`, `Failed (3)`.
+- RepositÃ³rio: `IPagamentoRepository` / `PagamentoRepository` usando `PagamentoDbContext` (EF Core).
 - Event Store: `IEventStore` / `EfEventStore` que grava `EventEntity` (EventId, AggregateId, EventType, OccurredAt, Version, CorrelationId, Payload) na tabela `Events`.
 - Processadores de pagamento:
-  - `PaymentProcessorHostedService` (background service na API) — verifica pendentes a cada 5s.
-  - `PaymentProcessorFunction` (Azure Function timer) — executa a cada 10s.
+  - `PaymentProcessorHostedService` (background service na API) â€” verifica pendentes a cada 5s.
+  - `PaymentProcessorFunction` (Azure Function timer) â€” executa a cada 10s.
 
 Endpoints principais
 --------------------
@@ -114,8 +114,8 @@ Endpoints principais
 
 Como executar
 -------------
-Veja a seção original (acima) para instruções de execução local e com Docker.
+Veja a seÃ§Ã£o original (acima) para instruÃ§Ãµes de execuÃ§Ã£o local e com Docker.
 
-Licença
+LicenÃ§a
 -------
-Projeto de exemplo — adapte conforme necessidade.
+Projeto de exemplo â€” adapte conforme necessidade.
