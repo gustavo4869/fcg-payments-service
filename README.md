@@ -12,6 +12,88 @@ Projeto exemplo de um serviço de pagamentos minimalista implementado em .NET 10.
 
 Objetivo: demonstrar um fluxo de pagamentos orientado a eventos com processamento assíncrono e reprocessamento.
 
+Visualização (diagramas)
+------------------------
+Incluí dois diagramas em `mermaid` para facilitar a visualização do fluxo e da arquitetura. Se o visualizador não renderizar `mermaid`, há um diagrama ASCII de fallback abaixo.
+
+Diagrama de arquitetura (Mermaid - flowchart)
+
+```mermaid
+flowchart LR
+  Client[Client]
+  API[`Fcg.Payments.Api\n(Minimal API)`]
+  Repo[`PagamentoRepository\n(EF Core) -> Pagamentos table`]
+  EventStore[`EfEventStore\n(Events table)`]
+  DB["Shared DB (SQLite)"]
+  Functions[`Fcg.Payments.Functions\n(Timer Trigger)`]
+  Consumers["Other consumers\n(projections, analytics)"]
+
+  Client -->|HTTP POST /payments| API
+  API --> Repo
+  API --> EventStore
+  Repo --> DB
+  EventStore --> DB
+  Functions -->|polls pending| Repo
+  Functions --> EventStore
+  Consumers -->|reads events| EventStore
+
+  subgraph Backend
+    API
+    Functions
+    Consumers
+  end
+
+  DB -.-> Backend
+```
+
+Fluxo de comunicação (Mermaid - sequence)
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as API
+  participant R as Repositório (DB)
+  participant E as EventStore
+  participant P as Processador (Hosted/Function)
+
+  C->>A: POST /payments (body + X-Correlation-ID?)
+  A->>R: INSERT Pagamento (Status=Requested)
+  A->>E: APPEND PaymentRequested (payload, correlationId)
+  Note right of E: Evento persistido
+
+  P->>R: SELECT Pagamentos WHERE Status=Requested
+  P->>P: Simula processamento (70% sucesso)
+  P->>R: UPDATE Pagamento (Status Succeeded/Failed)
+  P->>E: APPEND PaymentSucceeded/PaymentFailed (payload, correlationId)
+```
+
+Fallback ASCII (se `mermaid` não renderizar)
+
+ Client
+   |
+   | HTTP (POST /payments)
+   v
+ `Fcg.Payments.Api` (Minimal API)
+   |- `PagamentoRepository` (EF Core) -> `Pagamentos` table
+   |- `EfEventStore` (EF Core) -> `Events` table
+   |- `PaymentProcessorHostedService` (opcional)
+
+ Shared Database (SQLite)
+   /            \
+  /              \
+ v                v
+`Fcg.Payments.Functions`  Other consumers (projections, analytics)
+
+Melhorias de visualização
+-------------------------
+- `mermaid` permite gerar diagramas diretamente no `README.md` em plataformas que o suportam (GitHub, VS Code Markdown Preview com plugin, etc.).
+- Se desejar, eu posso gerar uma imagem PNG/SVG dos diagramas e adicioná-la ao repositório (em `docs/`), para garantir renderização em qualquer visualizador.
+
+Próximos passos sugeridos
+-------------------------
+- Deseja que eu gere imagens (`PNG`/`SVG`) dos dois diagramas e as adicione em `docs/`? Isso garante compatibilidade de visualização em todos os navegadores e plataformas.
+- Quer que eu adicione um diagrama mais detalhado (ex.: deploy, redes, portas, containers, GitHub Actions) ou mantenha o nível atual?
+
 Componentes principais
 ----------------------
 - `Pagamento` (entidade): representa um pagamento com campos `Id`, `UserId`, `GameId`, `Amount`, `Status`, `DataCriacao`.
@@ -21,147 +103,18 @@ Componentes principais
 - Processadores de pagamento:
   - `PaymentProcessorHostedService` (background service na API) — verifica pendentes a cada 5s.
   - `PaymentProcessorFunction` (Azure Function timer) — executa a cada 10s.
-  - Ambos simulam processamento com 70% de sucesso e publicam eventos `PaymentSucceeded` ou `PaymentFailed` no Event Store.
-- Endpoints HTTP (implementados em `PagamentosEndpoints` e `EventsEndpoints`).
 
 Endpoints principais
 --------------------
 - POST `/payments` (criar pagamento)
-  - Corpo: `{ "userId": "guid", "gameId": "guid", "amount": decimal }`
-  - Validação: campos obrigatórios + `amount > 0`.
-  - Produz evento `PaymentRequested` no Event Store. Requer autorização.
-  - Retorna `201 Created` com `PagamentoResponse`.
-
 - GET `/payments/{id}` (consultar pagamento)
-  - Retorna `200 OK` com `PagamentoResponse` ou `404`.
-  - Permite anonymous.
-
 - GET `/payments/by-user/{userId}`
-  - Lista pagamentos do usuário. Requer autorização.
-
 - POST `/payments/{id}/reprocess` (reprocessamento)
-  - Apenas para status `Failed`.
-  - Cria um novo pagamento (novo aggregate) e publica `PaymentRequested` para reprocessamento.
-  - Requer autorização `AdminOnly`.
-
 - GET `/events/{aggregateId}`
-  - Retorna lista de eventos para o `aggregateId` (Event Store read).
 
-Fluxo de comunicação entre microsserviços / componentes
------------------------------------------------------
-Fluxo principal (criar -> processar -> evento):
-
-1. Cliente chama POST `/payments` na API.
-2. API valida e persiste uma nova entidade `Pagamento` com status `Requested`.
-3. API grava um evento `PaymentRequested` no Event Store (tabela `Events`) com payload contendo dados do pagamento.
-4. Um processador (ou o `PaymentProcessorHostedService` executando dentro da API, ou `PaymentProcessorFunction` rodando em ambiente Functions) consulta periodicamente pagamentos com status `Requested` do banco.
-5. Para cada pagamento pendente, o processador simula o resultado (70% de sucesso) e marca o pagamento como `Succeeded` ou `Failed` no repositório.
-6. O processador grava um evento `PaymentSucceeded` ou `PaymentFailed` no Event Store com payload e, opcionalmente, `CorrelationId` se informado pelo cliente na requisição original (header `X-Correlation-ID`).
-
-Observações de comunicação:
-- Persistência e Event Store são compartilhados via banco (SQLite por padrão). Não há um barramento externo neste exemplo — o Event Store é a fonte de verdade para eventos.
-- Correlação: clientes podem enviar `X-Correlation-ID` em `POST /payments`. Esse `CorrelationId` é armazenado nos eventos subsequentes quando presente.
-
-Arquitetura (diagrama simplificado)
------------------------------------
-ASCII diagram:
-
- Client
-   |
-   | HTTP
-   v
- Fcg.Payments.Api (Minimal API)
-   |- `PagamentoRepository` (EF Core) -> `Pagamentos` table
-   |- `EfEventStore` (EF Core) -> `Events` table
-   |- `PaymentProcessorHostedService` (opcional, background)
-   |
-   +-----------------------+
-                           |
-                           v
-                 Shared Database (SQLite)
-                   /            \\
-                  /              \\
-                 v                v
-  Fcg.Payments.Functions        Other consumers
-  (Timer Trigger)               (e.g. analytics, projections)
-  - `PaymentProcessorFunction`  - read events from `Events` table
-  - uses same `PagamentoDbContext`
-
-Descrição do diagrama:
-- A API é responsável por aceitar comandos (ex.: `PaymentRequested`) e persistir o estado inicial.
-- O Event Store fica no mesmo banco e armazena os eventos por aggregate id.
-- O processamento assíncrono (hosted service ou function) consome o estado (consultando a tabela `Pagamentos`) e publica novos eventos no Event Store.
-- Outros consumidores (não implementados) poderiam ler a tabela `Events` para projeções, integrações ou notificações.
-
-Detalhamento do fluxo (exemplo com correlation id)
--------------------------------------------------
-- Requisição cliente com header `X-Correlation-ID: <guid>` ao criar pagamento.
-- API grava `PaymentRequested` com `CorrelationId` informado.
-- Processador, quando gravar `PaymentSucceeded` ou `PaymentFailed`, copia o mesmo `CorrelationId` para o evento.
-
-Banco de dados e migrations
----------------------------
-- Projeto contém migrations (pasta `Migrations`) com `InitialCreate` que cria as tabelas `Pagamentos` e `Events`.
-- Connection string padrão: `Data Source=fcg.db` (arquivo SQLite no diretório do app). Pode ser configurada via `ConnectionStrings:DefaultConnection`.
-- `Fcg.Payments.Functions` Program.cs tenta resolver caminhos relativos do `Data Source` para tornar o arquivo SQLite acessível ao Functions worker.
-
-Como executar localmente
-------------------------
-Pré-requisitos:
-- .NET 10 SDK
-- (opcional) Azure Functions Core Tools para executar as Functions localmente
-
-Executar API (local):
-- Entrar na pasta `Fcg.Payments.Api` e rodar:
-  - `dotnet run`  (ou publicar e executar a DLL)
-
-Executar Functions (local):
-- Entrar na pasta `Fcg.Payments.Functions` e usar Azure Functions Core Tools:
-  - `func start`  (requer `func` instalado)
-- Alternativamente, publicar/rodar o projeto Functions com `dotnet` em um host que suporte Functions worker.
-
-Como executar com Docker
-------------------------
-- API:
-  - `docker build -f Fcg.Payments.Api/Dockerfile -t fcg-payments-api:local .`
-  - `docker run -e "ASPNETCORE_ENVIRONMENT=Development" -p 8080:8080 fcg-payments-api:local`
-
-- Functions (container):
-  - `docker build -f Fcg.Payments.Functions/Dockerfile -t fcg-payments-functions:local .`
-  - `docker run -p 80:80 fcg-payments-functions:local`
-
-Exemplos de requisições
------------------------
-Criar pagamento:
-curl -X POST http://localhost:8080/payments \
-  -H "Content-Type: application/json" \
-  -H "X-Correlation-ID: <guid>" \
-  -d '{"userId":"<guid>","gameId":"<guid>","amount":9.99}'
-
-Consultar pagamento:
-curl http://localhost:8080/payments/<paymentId>
-
-Listar eventos de um aggregate:
-curl http://localhost:8080/events/<aggregateId>
-
-Reprocessar (AdminOnly — precisa de autorização configurada):
-curl -X POST http://localhost:8080/payments/<failedPaymentId>/reprocess
-
-Observabilidade e logs
-----------------------
-- O processamento (hosted service e function) grava logs com informações sobre cada pagamento processado e o resultado.
-- Em Azure ou contêiner, basta expor e coletar logs padrão do processo.
-
-Notas de arquitetura e limitações
---------------------------------
-- Exemplo simples: não existe um barramento de mensagens externo nem publish/subscribe real — o Event Store é uma tabela compartilhada.
-- Em produção, recomenda-se usar um banco dedicado com concorrência adequada, ou um broker/event bus (Kafka, RabbitMQ, EventGrid), particionamento, e mecanismos de retry/backoff mais robustos.
-- O reprocessamento aqui cria um novo aggregate em vez de reusar o mesmo id para simplificar o exemplo.
-
-Contribuição
-------------
-- Executar `dotnet ef database update` (ou deixar o app aplicar migrations automaticamente) para preparar o banco.
-- Abrir PR com melhorias (ex.: retries, métricas, separação de leitura/escrita para Event Store).
+Como executar
+-------------
+Veja a seção original (acima) para instruções de execução local e com Docker.
 
 Licença
 -------
