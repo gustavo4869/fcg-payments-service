@@ -6,6 +6,7 @@ using Fcg.Payments.Api.Infra.Events;
 using Fcg.Payments.Api.Infra.HostedServices;
 using Fcg.Payments.Api.Infra.Repositorio;
 using FluentValidation;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -21,6 +22,9 @@ namespace Fcg.Payments.Api.Setup
     {
         public static IServiceCollection AddApiCore(this IServiceCollection services, IConfiguration cfg)
         {
+            services.AddApplicationInsightsTelemetry();
+            services.AddSingleton<ITelemetryInitializer>(new CloudRoleNameTelemetryInitializer("fcg-payments"));
+
             var connectionString = cfg.GetConnectionString("DefaultConnection") ?? "Data Source=fcg.db";
             var jwtKey = cfg["Jwt:Key"]; // read early so swagger can be configured
 
