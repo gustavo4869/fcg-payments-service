@@ -7,5 +7,7 @@ namespace Fcg.Payments.Api.Domain.Repositorio
         Task AddAsync(Pagamento p, CancellationToken ct);
         Task<Pagamento?> GetByIdAsync(Guid id, CancellationToken ct);
         Task UpdateAsync(Pagamento p, CancellationToken ct);
+        Task<IReadOnlyList<Pagamento>> GetPendingAsync(CancellationToken ct);
+        Task<IReadOnlyList<Pagamento>> GetByUserIdAsync(Guid userId, CancellationToken ct);
     }
 }

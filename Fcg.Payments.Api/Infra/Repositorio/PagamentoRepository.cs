@@ -23,5 +23,21 @@ namespace Fcg.Payments.Api.Infra.Repositorio
             _db.Pagamentos.Update(p);
             await _db.SaveChangesAsync(ct);
         }
+
+        public async Task<IReadOnlyList<Pagamento>> GetPendingAsync(CancellationToken ct)
+        {
+            return await _db.Pagamentos
+                .Where(p => p.Status == Domain.Enum.PagamentoStatusEnum.Requested)
+                .OrderBy(p => p.DataCriacao)
+                .ToListAsync(ct);
+        }
+
+        public async Task<IReadOnlyList<Pagamento>> GetByUserIdAsync(Guid userId, CancellationToken ct)
+        {
+            return await _db.Pagamentos
+                .Where(p => p.UserId == userId)
+                .OrderByDescending(p => p.DataCriacao)
+                .ToListAsync(ct);
+        }
     }
 }

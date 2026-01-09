@@ -1,21 +1,27 @@
 ﻿using Fcg.Payments.Api.Api.Endpoints;
+using Fcg.Payments.Api.Api.Middleware;
 using Fcg.Payments.Api.Infra;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
-namespace Fcg.Payments.Api.Api.Setup
+namespace Fcg.Payments.Api.Setup
 {
     public static class WebApplicationExtensions
     {
         public static WebApplication UseApiCore(this WebApplication app)
         {
+            app.UseMiddleware<ErrorMiddleware>();
+            app.UseMiddleware<RequestLoggingMiddleware>();
             app.UseSwagger();
             app.UseSwaggerUI(opt =>
             {
-                opt.SwaggerEndpoint("/swagger/v1/swagger.json", "FCG Payments v1");
+                opt.SwaggerEndpoint("/swagger/v1/swagger.json", "FIAP Cloud Games v1");
                 opt.DisplayRequestDuration();
             });
+
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             ApplyMigrationsAndSeed(app);
 
@@ -49,7 +55,6 @@ namespace Fcg.Payments.Api.Api.Setup
 
             var api = app.MapGroup("/api/v1");
             api.MapPagamentosEndpoints();
-            api.MapEventsEndpoints();
             return app;
         }
 

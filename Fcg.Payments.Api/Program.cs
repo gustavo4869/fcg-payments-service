@@ -1,4 +1,4 @@
-using Fcg.Payments.Api.Api.Setup;
+using Fcg.Payments.Api.Setup;
 
 var builder = WebApplication.CreateBuilder(args);
 
