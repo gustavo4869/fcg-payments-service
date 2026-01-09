@@ -84,16 +84,6 @@ Fallback ASCII (se `mermaid` não renderizar)
  v                v
 `Fcg.Payments.Functions`  Other consumers (projections, analytics)
 
-Melhorias de visualização
--------------------------
-- `mermaid` permite gerar diagramas diretamente no `README.md` em plataformas que o suportam (GitHub, VS Code Markdown Preview com plugin, etc.).
-- Se desejar, eu posso gerar uma imagem PNG/SVG dos diagramas e adicioná-la ao repositório (em `docs/`), para garantir renderização em qualquer visualizador.
-
-Próximos passos sugeridos
--------------------------
-- Deseja que eu gere imagens (`PNG`/`SVG`) dos dois diagramas e as adicione em `docs/`? Isso garante compatibilidade de visualização em todos os navegadores e plataformas.
-- Quer que eu adicione um diagrama mais detalhado (ex.: deploy, redes, portas, containers, GitHub Actions) ou mantenha o nível atual?
-
 Componentes principais
 ----------------------
 - `Pagamento` (entidade): representa um pagamento com campos `Id`, `UserId`, `GameId`, `Amount`, `Status`, `DataCriacao`.
@@ -111,7 +101,3 @@ Endpoints principais
 - GET `/payments/by-user/{userId}`
 - POST `/payments/{id}/reprocess` (reprocessamento)
 - GET `/events/{aggregateId}`
-
-Como executar
--------------
-Veja a seção original (acima) para instruções de execução local e com Docker.
