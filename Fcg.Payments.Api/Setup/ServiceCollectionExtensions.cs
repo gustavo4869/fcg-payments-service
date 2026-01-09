@@ -22,13 +22,72 @@ namespace Fcg.Payments.Api.Setup
     {
         public static IServiceCollection AddApiCore(this IServiceCollection services, IConfiguration cfg)
         {
-            services.AddApplicationInsightsTelemetry();
-            services.AddSingleton<ITelemetryInitializer>(new CloudRoleNameTelemetryInitializer("fcg-payments"));
+            // Application Insights - Configuração completa
+            // Tentar múltiplos formatos de configuração (compatibilidade com diferentes ambientes)
+            var connectionString = cfg["ApplicationInsights:ConnectionString"]
+                ?? cfg["ApplicationInsights__ConnectionString"] 
+                ?? cfg["APPLICATIONINSIGHTS_CONNECTION_STRING"]
+                ?? Environment.GetEnvironmentVariable("ApplicationInsights__ConnectionString")
+                ?? Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
 
-            var connectionString = cfg.GetConnectionString("DefaultConnection") ?? "Data Source=fcg.db";
-            var jwtKey = cfg["Jwt:Key"]; // read early so swagger can be configured
+            // Log de debug para diagnóstico (será enviado ao Application Insights quando configurado)
+            Console.WriteLine($"[DEBUG] Application Insights Connection String found: {!string.IsNullOrWhiteSpace(connectionString)}");
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                Console.WriteLine($"[DEBUG] Connection String length: {connectionString.Length} characters");
+                Console.WriteLine($"[DEBUG] Contains InstrumentationKey: {connectionString.Contains("InstrumentationKey")}");
+            }
+            else
+            {
+                Console.WriteLine("[WARNING] Application Insights Connection String NOT FOUND - Telemetry disabled");
+                Console.WriteLine("[DEBUG] Checked keys: ApplicationInsights:ConnectionString, ApplicationInsights__ConnectionString, APPLICATIONINSIGHTS_CONNECTION_STRING");
+            }
 
-            services.AddDbContext<PagamentoDbContext>(o => o.UseSqlite(connectionString));
+            if (!string.IsNullOrWhiteSpace(connectionString))
+            {
+                services.AddApplicationInsightsTelemetry(options =>
+                {
+                    options.ConnectionString = connectionString;
+                    
+                    // Controle de sampling
+                    options.EnableAdaptiveSampling = cfg.GetValue<bool>("ApplicationInsights:EnableAdaptiveSampling", true);
+                    
+                    // Coleta de performance counters (CPU, memória, etc)
+                    options.EnablePerformanceCounterCollectionModule = cfg.GetValue<bool>("ApplicationInsights:EnablePerformanceCounterCollectionModule", true);
+                    
+                    // Rastreamento de dependências (HTTP, SQL, etc)
+                    options.EnableDependencyTrackingTelemetryModule = cfg.GetValue<bool>("ApplicationInsights:EnableDependencyTrackingTelemetryModule", true);
+                    
+                    // Coleta de heartbeat para monitoramento de health
+                    options.EnableHeartbeat = true;
+                    
+                    // Coleta automática de requisições HTTP
+                    options.EnableRequestTrackingTelemetryModule = true;
+                    
+                    // Coleta de eventos de exceção
+                    options.EnableEventCounterCollectionModule = true;
+                });
+                
+                // Configurar TelemetryInitializer para nome da aplicação
+                services.AddSingleton<ITelemetryInitializer>(new CloudRoleNameTelemetryInitializer("fcg-payments"));
+                
+                // Integrar ILogger com Application Insights
+                services.AddLogging(loggingBuilder =>
+                {
+                    loggingBuilder.AddApplicationInsights(
+                        configureTelemetryConfiguration: (config) => 
+                            config.ConnectionString = connectionString,
+                        configureApplicationInsightsLoggerOptions: (options) => { }
+                    );
+                });
+                
+                Console.WriteLine("[SUCCESS] Application Insights configured successfully!");
+            }
+
+            var connectionStringDb = cfg.GetConnectionString("DefaultConnection") ?? "Data Source=fcg.db";
+            var jwtKey = cfg["Jwt:Key"];
+
+            services.AddDbContext<PagamentoDbContext>(o => o.UseSqlite(connectionStringDb));
 
             services.AddScoped<IPagamentoRepository, PagamentoRepository>();
             services.AddScoped<IEventStore, EfEventStore>();
