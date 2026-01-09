@@ -1,6 +1,11 @@
 ﻿FIAP Cloud Games - Serviço de Pagamentos
 ======================================
 
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)](https://dotnet.microsoft.com/)
+[![Azure Container Apps](https://img.shields.io/badge/Azure-Container%20Apps-blue)](https://azure.microsoft.com/services/container-apps/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Deploy Status](https://github.com/gustavo4869/fcg-payments-service/actions/workflows/deploy-payments.yml/badge.svg)](https://github.com/gustavo4869/fcg-payments-service/actions)
+
 > **MVP – Microsserviço de Pagamentos (simulado, orientado a eventos)**
 
 API RESTful desenvolvida em **.NET 10** para criação e processamento assíncrono de pagamentos. Simula processamento com um worker (HostedService) e um Azure Function (timer) e persiste eventos em um Event Store (append-only).
