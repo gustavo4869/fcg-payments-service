@@ -1,21 +1,12 @@
+using Fcg.Payments.Api.Api.Setup;
+
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddApiCore(builder.Configuration);
 
 var app = builder.Build();
 
-app.MapGet("/health", () => Results.Ok(new
-{
-    status = "ok",
-    service = "users",
-    timestamp = DateTime.UtcNow
-}));
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseApiCore();
+app.MapV1Endpoints();
 
 app.Run();
