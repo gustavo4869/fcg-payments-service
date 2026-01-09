@@ -4,6 +4,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-purple)](https://dotnet.microsoft.com/)
 [![Azure Container Apps](https://img.shields.io/badge/Azure-Container%20Apps-blue)](https://azure.microsoft.com/services/container-apps/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Deploy Status](https://github.com/gustavo4869/fcg-payments-service/actions/workflows/deploy.yml/badge.svg)](https://github.com/gustavo4869/fcg-payments-service/actions)
 
 > **MVP – Microsserviço de Pagamentos (simulado, orientado a eventos)**
 
