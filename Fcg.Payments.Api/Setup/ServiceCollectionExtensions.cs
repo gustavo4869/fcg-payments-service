@@ -1,18 +1,19 @@
+using Fcg.Payments.Api.Api.Middleware;
 using Fcg.Payments.Api.Application.Pagamentos;
 using Fcg.Payments.Api.Domain.Repositorio;
 using Fcg.Payments.Api.Infra;
 using Fcg.Payments.Api.Infra.Events;
 using Fcg.Payments.Api.Infra.HostedServices;
 using Fcg.Payments.Api.Infra.Repositorio;
-using Fcg.Payments.Api.Api.Middleware;
 using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
-using System.Text;
 using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
+using System.Security.Claims;
+using System.Text;
 
 namespace Fcg.Payments.Api.Setup
 {
@@ -87,13 +88,13 @@ namespace Fcg.Payments.Api.Setup
                         ValidateAudience = false,
                         ValidateIssuerSigningKey = true,
                         IssuerSigningKey = key,
-                        ValidateLifetime = true
+                        ValidateLifetime = true,
+                        RoleClaimType = ClaimTypes.Role
                     };
-                });
 
-                services.AddAuthorization(opt =>
+                    services.AddAuthorization(opt =>
                 {
-                    opt.AddPolicy("AdminOnly", p => p.RequireClaim("role", "Admin", "Administrador"));
+                    opt.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
                 });
             }
 
