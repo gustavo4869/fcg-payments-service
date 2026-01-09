@@ -115,7 +115,3 @@ Endpoints principais
 Como executar
 -------------
 Veja a seção original (acima) para instruções de execução local e com Docker.
-
-Licença
--------
-Projeto de exemplo — adapte conforme necessidade.
