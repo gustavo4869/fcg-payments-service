@@ -3,6 +3,7 @@ using Fcg.Payments.Api.Api.Middleware;
 using Fcg.Payments.Api.Infra;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using System.Text.Json;
 
 namespace Fcg.Payments.Api.Setup
@@ -13,7 +14,31 @@ namespace Fcg.Payments.Api.Setup
         {
             app.UseMiddleware<ErrorMiddleware>();
             app.UseMiddleware<RequestLoggingMiddleware>();
-            app.UseSwagger();
+            app.UseSwagger(c =>
+            {
+                c.PreSerializeFilters.Add((swagger, httpReq) =>
+                {
+                    var prefix = httpReq.Headers["X-Forwarded-Prefix"].FirstOrDefault();
+
+                    // Quando vem via gateway, prefix será "/games" ou "/users" etc.
+                    // Quando acessa direto o container (interno), prefix estará vazio.
+                    if (!string.IsNullOrWhiteSpace(prefix))
+                    {
+                        swagger.Servers = new List<OpenApiServer>
+                        {
+                            new() { Url = prefix } // URL relativa ao host atual (gateway)
+                        };
+                    }
+                    else
+                    {
+                        // Acesso direto (sem gateway): mantém raiz
+                        swagger.Servers = new List<OpenApiServer>
+                        {
+                            new() { Url = "/" }
+                        };
+                    }
+                });
+            });
             app.UseSwaggerUI(opt =>
             {
                 opt.SwaggerEndpoint("v1/swagger.json", "FIAP Cloud Games v1");
