@@ -71,16 +71,6 @@ namespace Fcg.Payments.Api.Setup
                 // Configurar TelemetryInitializer para nome da aplicação
                 services.AddSingleton<ITelemetryInitializer>(new CloudRoleNameTelemetryInitializer("fcg-payments"));
                 
-                // Integrar ILogger com Application Insights
-                services.AddLogging(loggingBuilder =>
-                {
-                    loggingBuilder.AddApplicationInsights(
-                        configureTelemetryConfiguration: (config) => 
-                            config.ConnectionString = connectionString,
-                        configureApplicationInsightsLoggerOptions: (options) => { }
-                    );
-                });
-                
                 Console.WriteLine("[SUCCESS] Application Insights configured successfully!");
             }
 
