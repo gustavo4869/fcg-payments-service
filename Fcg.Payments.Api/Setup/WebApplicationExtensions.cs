@@ -16,7 +16,7 @@ namespace Fcg.Payments.Api.Setup
             app.UseSwagger();
             app.UseSwaggerUI(opt =>
             {
-                opt.SwaggerEndpoint("/swagger/v1/swagger.json", "FIAP Cloud Games v1");
+                opt.SwaggerEndpoint("v1/swagger.json", "FIAP Cloud Games v1");
                 opt.DisplayRequestDuration();
             });
 
