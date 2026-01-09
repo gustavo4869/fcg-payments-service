@@ -85,39 +85,6 @@ namespace Fcg.Payments.Api.Api.Endpoints
                 .Produces<List<PagamentoResponse>>(StatusCodes.Status200OK)
                 .RequireAuthorization();
 
-            g.MapPost("/{id:guid}/reprocess",
-                async (Guid id, IPagamentoRepository repo, IEventStore eventStore, HttpContext http, CancellationToken ct) =>
-                {
-                    var p = await repo.GetByIdAsync(id, ct);
-                    if (p is null) return Results.NotFound();
-
-                    if (p.Status != Domain.Enum.PagamentoStatusEnum.Failed) return Results.BadRequest();
-
-                    var correlationId = http.Request.Headers.TryGetValue("X-Correlation-ID", out var v) && Guid.TryParse(v, out var cid)
-                        ? cid
-                        : (Guid?)null;
-
-                    // create a new payment for reprocessing
-                    var newP = new Pagamento(p.UserId, p.GameId, p.Amount);
-
-                    await repo.AddAsync(newP, ct);
-
-                    var payload = JsonSerializer.Serialize(new
-                    {
-                        paymentId = newP.Id,
-                        userId = newP.UserId,
-                        gameId = newP.GameId,
-                        amount = newP.Amount,
-                        status = newP.Status.ToString(),
-                        occurredAt = DateTime.UtcNow
-                    });
-
-                    await eventStore.AppendAsync(newP.Id, "PaymentRequested", payload, correlationId, ct);
-
-                    return Results.Accepted($"/api/v1/payments/{newP.Id}", new PagamentoResponse(newP.Id, newP.UserId, newP.GameId, newP.Amount, newP.Status.ToString(), newP.DataCriacao));
-                })
-                .RequireAuthorization("AdminOnly");
-
             return app;
         }
     }
