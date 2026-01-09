@@ -1,0 +1,173 @@
+name: Build and Deploy Payments (API + Function)
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  AZURE_CONTAINER_REGISTRY: acrfcggames1222.azurecr.io
+  RESOURCE_GROUP: fiap-cloud-games-rg
+  AZURE_LOCATION: brazilsouth
+  ACR_IMAGE_API: fcg-payments-api
+  ACR_IMAGE_FUNCTION: fcg-payments-function
+  CONTAINER_APP_API: ca-fcg-payments
+  CONTAINER_APP_FUNCTION: ca-fcg-payments-func
+
+jobs:
+  build-and-deploy-api:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to ACR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.AZURE_CONTAINER_REGISTRY }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Extract image tag
+      id: tag
+      run: |
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+    - name: Build and push API image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Fcg.Payments.Api/Dockerfile
+        push: true
+        tags: |
+          ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_API }}:${{ steps.tag.outputs.IMAGE_TAG }}
+          ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_API }}:latest
+        cache-from: type=registry,ref=${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_API }}:buildcache
+        cache-to: type=registry,ref=${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_API }}:buildcache,mode=max
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Configure Container App Registry Credentials (API)
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az containerapp registry set \
+            --name ${{ env.CONTAINER_APP_API }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --server ${{ env.AZURE_CONTAINER_REGISTRY }} \
+            --username ${{ secrets.ACR_USERNAME }} \
+            --password ${{ secrets.ACR_PASSWORD }}
+
+    - name: Deploy API Container App
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az config set extension.use_dynamic_install=yes_without_prompt
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_API }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_API }}:${{ steps.tag.outputs.IMAGE_TAG }} \
+            --set-env-vars \
+              ASPNETCORE_ENVIRONMENT=Production \
+              Logging__LogLevel__Default=Information \
+              Logging__LogLevel__Microsoft_AspNetCore=Warning \
+              AllowedHosts=* \
+              Jwt__Key=${{ secrets.JWT_KEY }}
+
+    - name: Get API URL
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          URL=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_API }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "API_URL=https://$URL" >> $GITHUB_OUTPUT
+
+  build-and-deploy-function:
+    needs: build-and-deploy-api
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to ACR
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.AZURE_CONTAINER_REGISTRY }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Extract image tag
+      id: tag-func
+      run: |
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+    - name: Build and push Function image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Fcg.Payments.Functions/Dockerfile
+        push: true
+        tags: |
+          ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_FUNCTION }}:${{ steps.tag-func.outputs.IMAGE_TAG }}
+          ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_FUNCTION }}:latest
+        cache-from: type=registry,ref=${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_FUNCTION }}:buildcache
+        cache-to: type=registry,ref=${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_FUNCTION }}:buildcache,mode=max
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Configure Container App Registry Credentials (Function)
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az containerapp registry set \
+            --name ${{ env.CONTAINER_APP_FUNCTION }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --server ${{ env.AZURE_CONTAINER_REGISTRY }} \
+            --username ${{ secrets.ACR_USERNAME }} \
+            --password ${{ secrets.ACR_PASSWORD }}
+
+    - name: Deploy Function Container App
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          az config set extension.use_dynamic_install=yes_without_prompt
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_FUNCTION }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.ACR_IMAGE_FUNCTION }}:${{ steps.tag-func.outputs.IMAGE_TAG }} \
+            --set-env-vars \
+              AZURE_FUNCTIONS_ENVIRONMENT=Production \
+              Logging__LogLevel__Default=Information \
+              Logging__LogLevel__Microsoft_AspNetCore=Warning \
+              AllowedHosts=* \
+              Jwt__Key=${{ secrets.JWT_KEY }} \
+              ConnectionStrings__DefaultConnection="Data Source=/data/fcg.db"
+
+    - name: Get Function URL
+      uses: azure/CLI@v1
+      with:
+        inlineScript: |
+          URL=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_FUNCTION }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "FUNCTION_URL=https://$URL" >> $GITHUB_OUTPUT
