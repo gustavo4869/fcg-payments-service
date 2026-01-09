@@ -8,3 +8,5 @@
 /.vs
 /Fcg.Payments.Api/bin/Debug/net10.0
 /Fcg.Payments.Api/Fcg.Payments.Api.csproj.Backup.tmp
+/Fcg.Payments.Functions/bin/Debug
+/Fcg.Payments.Functions/obj
