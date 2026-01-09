@@ -91,8 +91,9 @@ namespace Fcg.Payments.Api.Setup
                         ValidateLifetime = true,
                         RoleClaimType = ClaimTypes.Role
                     };
+                });
 
-                    services.AddAuthorization(opt =>
+                services.AddAuthorization(opt =>
                 {
                     opt.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
                 });
