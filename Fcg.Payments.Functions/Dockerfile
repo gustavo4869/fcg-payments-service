@@ -22,5 +22,7 @@ COPY --from=build /out .
 # Ensure Functions host finds the app
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot
 ENV FUNCTIONS_WORKER_RUNTIME=dotnet-isolated
+# Ensure the app listens on port 80 so Container Apps targetPort matches the container
+ENV ASPNETCORE_URLS="http://0.0.0.0:80"
 
 # The base image's entrypoint will run the Functions host.
