@@ -1,22 +1,25 @@
-# Dockerfile for Fcg.Payments.Functions (containerized .NET isolated worker)
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-WORKDIR /app
-EXPOSE 80
-
+# Use Azure Functions .NET isolated base for proper Functions host
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+
+# copy csproj and restore
 COPY ["Fcg.Payments.Functions/Fcg.Payments.Functions.csproj", "Fcg.Payments.Functions/"]
 RUN dotnet restore "Fcg.Payments.Functions/Fcg.Payments.Functions.csproj"
+
+# copy everything and publish
 COPY . .
 WORKDIR "/src/Fcg.Payments.Functions"
-RUN dotnet build "Fcg.Payments.Functions.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet publish "Fcg.Payments.Functions.csproj" -c Release -o /out /p:UseAppHost=false
 
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "Fcg.Payments.Functions.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+# Use Azure Functions base image that runs the Functions host and the isolated worker
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:1 AS runtime
+WORKDIR /home/site/wwwroot
 
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Fcg.Payments.Functions.dll"]
+# Copy published output to the function app root expected by the host
+COPY --from=build /out .
+
+# Ensure Functions host finds the app
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot
+ENV FUNCTIONS_WORKER_RUNTIME=dotnet-isolated
+
+# The base image's entrypoint will run the Functions host.
