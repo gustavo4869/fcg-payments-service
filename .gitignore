@@ -10,3 +10,13 @@
 /Fcg.Payments.Api/Fcg.Payments.Api.csproj.Backup.tmp
 /Fcg.Payments.Functions/bin/Debug
 /Fcg.Payments.Functions/obj
+/APPLY_MIGRATION_GUIDE.md
+/check-rabbitmq.ps1
+/diagnose-database.ps1
+/diagnose-k8s-rabbitmq.ps1
+/EVENT_DRIVEN_REFACTORING.md
+/SIMPLIFIED_ARCHITECTURE.md
+/start-dev-simplified.ps1
+/start-dev.ps1
+/start-function-with-k8s-rabbitmq.ps1
+/TESTING_GUIDE.md

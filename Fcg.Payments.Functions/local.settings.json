@@ -1,10 +1,13 @@
 {
   "IsEncrypted": false,
   "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated"
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
+    "RabbitMqConnection": "amqp://fcg:081160Ec!@localhost:5672",
+    "PaymentQueueName": "payment.pending"
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Data Source=../Fcg.Payments.Api/fcg.db"
+    "DefaultConnection": "Data Source=C:\\Users\\gusta\\source\\repos\\fcg-payments-service\\Fcg.Payments.Api\\fcg.db"
   }
 }

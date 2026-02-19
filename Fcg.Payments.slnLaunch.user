@@ -4,6 +4,21 @@
     "Projects": [
       {
         "Path": "Fcg.Payments.Api\\Fcg.Payments.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "https"
+      },
+      {
+        "Path": "Fcg.Payments.Functions\\Fcg.Payments.Functions.csproj",
+        "Action": "Start",
+        "DebugTarget": "Fcg.Payments.Functions"
+      }
+    ]
+  },
+  {
+    "Name": "Novo Perfil",
+    "Projects": [
+      {
+        "Path": "Fcg.Payments.Api\\Fcg.Payments.Api.csproj",
         "Action": "Start"
       },
       {

@@ -6,6 +6,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
 using System.Text.Json;
 using System.Linq;
+using Fcg.Payments.Api.Domain.Messaging;
 
 namespace Fcg.Payments.Api.Api.Endpoints
 {
@@ -20,8 +21,10 @@ namespace Fcg.Payments.Api.Api.Endpoints
                     CriarPagamentoRequest req,
                     IPagamentoRepository repo,
                     IEventStore eventStore,
+                    IPaymentRequestPublisher publisher,
                     IValidator<CriarPagamentoRequest> validator,
                     HttpContext http,
+                    ILogger<Program> logger,
                     CancellationToken ct) =>
                 {
                     var validationResult = await validator.ValidateAsync(req, ct);
@@ -51,8 +54,33 @@ namespace Fcg.Payments.Api.Api.Endpoints
                         aggregateId: p.Id,
                         eventType: "PaymentRequested",
                         payloadJson: payload,
-                        correlationId: correlationId,
+                        idempotencyKey: null,
                         ct: ct);
+
+                    // Publish payment.pending to RabbitMQ for Function to process
+                    try
+                    {
+                        var message = new PaymentPendingMessage(
+                            PaymentId: p.Id,
+                            UserId: p.UserId,
+                            GameId: p.GameId,
+                            Amount: p.Amount,
+                            CorrelationId: correlationId
+                        );
+
+                        await publisher.PublishPaymentPendingAsync(message, ct);
+                        
+                        logger.LogInformation(
+                            "Published payment.pending to queue for payment {PaymentId}",
+                            p.Id);
+                    }
+                    catch (Exception pubEx)
+                    {
+                        logger.LogError(pubEx,
+                            "Failed to publish payment.pending for payment {PaymentId}. Payment is saved but won't be processed until republished.",
+                            p.Id);
+                        // Don't fail the request - payment is already saved in DB
+                    }
 
                     return Results.Created($"/api/v1/payments/{p.Id}",
                         new PagamentoResponse(p.Id, p.UserId, p.GameId, p.Amount, p.Status.ToString(), p.DataCriacao));

@@ -1,4 +1,5 @@
 using Fcg.Payments.Api.Domain.Enum;
+using Fcg.Payments.Api.Domain.Messaging;
 using Fcg.Payments.Api.Domain.Repositorio;
 using Fcg.Payments.Api.Infra.Events;
 using Microsoft.Extensions.Hosting;
@@ -60,7 +61,7 @@ namespace Fcg.Payments.Api.Infra.HostedServices
                             occurredAt = DateTime.UtcNow
                         });
 
-                        await eventStore.AppendAsync(p.Id, success ? "PaymentSucceeded" : "PaymentFailed", payload, correlationId: null, ct: stoppingToken);
+                        await eventStore.AppendAsync(p.Id, success ? "PaymentSucceeded" : "PaymentFailed", payload, idempotencyKey: null, ct: stoppingToken);
 
                         _logger.LogInformation("Processed payment {PaymentId} result={Status}", p.Id, p.Status);
                     }

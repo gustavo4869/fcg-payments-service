@@ -8,7 +8,7 @@ namespace Fcg.Payments.Api.Infra.Events
 
         public EfEventStore(PagamentoDbContext db) => _db = db;
 
-        public async Task AppendAsync(Guid aggregateId, string eventType, string payloadJson, Guid? correlationId, CancellationToken ct)
+        public async Task AppendAsync(Guid aggregateId, string eventType, string payloadJson, string? idempotencyKey, CancellationToken ct)
         {
             var lastVersion = await _db.Events
                 .Where(e => e.AggregateId == aggregateId)
@@ -23,8 +23,9 @@ namespace Fcg.Payments.Api.Infra.Events
                 EventType = eventType,
                 OccurredAt = DateTime.UtcNow,
                 Version = nextVersion,
-                CorrelationId = correlationId,
-                Payload = payloadJson
+                CorrelationId = null,
+                Payload = payloadJson,
+                IdempotencyKey = idempotencyKey
             });
 
             await _db.SaveChangesAsync(ct);
@@ -36,6 +37,13 @@ namespace Fcg.Payments.Api.Infra.Events
                 .Where(e => e.AggregateId == aggregateId)
                 .OrderBy(e => e.Version)
                 .ToListAsync(ct);
+        }
+
+        public async Task<EventEntity?> GetByIdempotencyKeyAsync(string idempotencyKey, CancellationToken ct)
+        {
+            return await _db.Events
+                .Where(e => e.IdempotencyKey == idempotencyKey)
+                .FirstOrDefaultAsync(ct);
         }
     }
 }

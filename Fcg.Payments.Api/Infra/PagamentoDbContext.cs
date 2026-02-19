@@ -30,8 +30,10 @@ namespace Fcg.Payments.Api.Infra
                 b.HasKey(x => x.EventId);
                 b.Property(x => x.EventType).HasMaxLength(100).IsRequired();
                 b.Property(x => x.Payload).IsRequired();
+                b.Property(x => x.IdempotencyKey).HasMaxLength(200);
                 b.HasIndex(x => x.AggregateId);
                 b.HasIndex(x => x.OccurredAt);
+                b.HasIndex(x => x.IdempotencyKey).IsUnique().HasFilter("IdempotencyKey IS NOT NULL");
             });
         }
     }

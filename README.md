@@ -166,8 +166,10 @@ Fcg.Payments.Api/
 ## 📋 Pré-requisitos
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- (Opcional) [Azure Functions Core Tools] para rodar `Fcg.Payments.Functions` localmente
+- (Opcional) [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local) para rodar `Fcg.Payments.Functions` localmente
 - Docker (opcional)
+
+**Nota**: Para executar Azure Functions localmente, você NÃO precisa do Azurite/Azure Storage Emulator para desenvolvimento básico. O `local.settings.json` já está configurado para funcionar sem storage local.
 
 ---
 
@@ -190,6 +192,11 @@ A API estará disponível na porta configurada (ex.: 8080).
 cd Fcg.Payments.Functions
 func start
 ```
+
+**Troubleshooting**: Se você receber erro de conexão ao storage (porta 10000):
+- ✅ O `local.settings.json` já está configurado para funcionar sem Azurite
+- ⚠️ Se o erro persistir, verifique se a configuração está: `"AzureWebJobsStorage": ""`
+- 💡 Em produção, o Azure configura automaticamente a connection string real
 
 > Observação: `Fcg.Payments.Functions` aplica migrations automaticamente na inicialização.
 
@@ -272,17 +279,114 @@ Tipos de eventos presentes no fluxo:
 
 ## ⚙️ Variáveis de Ambiente
 
+### Variáveis Base
+
 | Variável | Descrição | Padrão | Obrigatório |
 |----------|-----------|--------|-------------|
 | `ASPNETCORE_ENVIRONMENT` | Ambiente de execução | `Development` | Não |
 | `ConnectionStrings__DefaultConnection` | String de conexão SQLite | `Data Source=fcg.db` | Não |
 
-Exemplo `appsettings.json`:
+### Variáveis de Mensageria (RabbitMQ)
+
+O serviço suporta publicação de eventos via RabbitMQ. Para habilitar esta funcionalidade, configure as seguintes variáveis:
+
+| Variável | Descrição | Padrão | Obrigatório | Exemplo |
+|----------|-----------|--------|-------------|---------|
+| `MESSAGING__ENABLED` | Feature flag para habilitar mensageria | `false` | **Sim** | `true` |
+| `MESSAGING__HOST` | Host do RabbitMQ | `localhost` | Sim (se enabled) | `rabbitmq.svc.cluster.local` |
+| `MESSAGING__PORT` | Porta do RabbitMQ | `5672` | Não | `5672` |
+| `MESSAGING__USERNAME` | Usuário de autenticação | `guest` | Sim (se enabled) | `payments-publisher` |
+| `MESSAGING__PASSWORD` | Senha de autenticação | `guest` | Sim (se enabled) | `<secret>` |
+| `MESSAGING__VHOST` | Virtual host do RabbitMQ | `/` | Não | `/payments` |
+| `MESSAGING__EXCHANGE` | Nome do exchange (topic) | `payments` | Não | `payments` |
+| `MESSAGING__ROUTINGKEY` | Routing key para mensagens | `payment.processed` | Não | `payment.processed` |
+| `MESSAGING__QUEUE` | Nome da fila (referência) | `payments-processed` | Não | `payments-processed` |
+
+#### Comportamento do Feature Flag
+
+- **`MESSAGING__ENABLED=false`** (padrão): Nenhuma conexão RabbitMQ é estabelecida. O publisher usa implementação `NoOpPaymentEventPublisher` que apenas loga e não publica eventos.
+- **`MESSAGING__ENABLED=true`**: Conexão RabbitMQ é estabelecida na inicialização. Eventos são publicados após processamento bem-sucedido dos pagamentos.
+
+#### Formato da Mensagem Publicada
+
+Quando habilitado, o serviço publica mensagens JSON no exchange configurado com o seguinte formato:
+
+```json
+{
+  "paymentId": "guid",
+  "orderId": "guid|null",
+  "userId": "guid",
+  "gameId": "guid",
+  "status": "Succeeded|Failed",
+  "amount": 99.99,
+  "currency": "BRL",
+  "processedAt": "2024-01-15T10:30:00Z",
+  "correlationId": "guid|null"
+}
+```
+
+#### Ponto de Publicação
+
+Os eventos são publicados **após** a transação de atualização do pagamento (`UpdateAsync`) no `PaymentProcessorHostedService`, garantindo que:
+1. O estado do pagamento é persistido primeiro
+2. O evento só é publicado para pagamentos persistidos com sucesso
+3. Falhas na publicação **não afetam** o processamento do pagamento (logged but not thrown)
+
+#### Resiliência
+
+- **Retry automático**: 3 tentativas com backoff exponencial (100ms, 200ms, 300ms)
+- **Publisher Confirms**: Ativado para garantir que mensagens foram recebidas pelo broker
+- **Persistência**: Mensagens marcadas como persistentes (`BasicProperties.Persistent = true`)
+- **Reconnection automática**: Conexão configurada com `AutomaticRecoveryEnabled = true`
+
+#### Exemplo de Configuração no Kubernetes
+
+```yaml
+env:
+  - name: MESSAGING__ENABLED
+    value: "true"
+  - name: MESSAGING__HOST
+    valueFrom:
+      configMapKeyRef:
+        name: rabbitmq-config
+        key: host
+  - name: MESSAGING__PORT
+    value: "5672"
+  - name: MESSAGING__USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: rabbitmq-credentials
+        key: username
+  - name: MESSAGING__PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: rabbitmq-credentials
+        key: password
+  - name: MESSAGING__VHOST
+    value: "/payments"
+  - name: MESSAGING__EXCHANGE
+    value: "payments"
+  - name: MESSAGING__ROUTINGKEY
+    value: "payment.processed"
+```
+
+Exemplo `appsettings.json` (desenvolvimento local):
 
 ```json
 {
   "ConnectionStrings": {
     "DefaultConnection": "Data Source=fcg.db"
+  },
+  "Messaging": {
+    "Enabled": false,
+    "Host": "localhost",
+    "Port": 5672,
+    "Username": "guest",
+    "Password": "guest",
+    "VHost": "/",
+    "Exchange": "payments",
+    "RoutingKey": "payment.processed",
+    "Queue": "payments-processed"
   }
 }
 ```

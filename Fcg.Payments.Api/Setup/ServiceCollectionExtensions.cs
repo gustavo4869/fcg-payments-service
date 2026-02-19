@@ -1,15 +1,18 @@
 using Fcg.Payments.Api.Api.Middleware;
 using Fcg.Payments.Api.Application.Pagamentos;
+using Fcg.Payments.Api.Domain.Messaging;
 using Fcg.Payments.Api.Domain.Repositorio;
 using Fcg.Payments.Api.Infra;
 using Fcg.Payments.Api.Infra.Events;
 using Fcg.Payments.Api.Infra.HostedServices;
+using Fcg.Payments.Api.Infra.Messaging;
 using Fcg.Payments.Api.Infra.Repositorio;
 using FluentValidation;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Microsoft.OpenApi.Models;
@@ -82,6 +85,24 @@ namespace Fcg.Payments.Api.Setup
             services.AddScoped<IPagamentoRepository, PagamentoRepository>();
             services.AddScoped<IEventStore, EfEventStore>();
             services.AddValidatorsFromAssemblyContaining<CriarPagamentoValidator>();
+
+            // Messaging configuration (RabbitMQ publisher)
+            services.Configure<MessagingOptions>(cfg.GetSection(MessagingOptions.SectionName));
+            services.AddSingleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>();
+            
+            var messagingEnabled = cfg.GetValue<bool>($"{MessagingOptions.SectionName}:Enabled");
+            if (messagingEnabled)
+            {
+                services.AddSingleton<IPaymentEventPublisher, RabbitMqPaymentEventPublisher>();
+                services.AddSingleton<IPaymentRequestPublisher, RabbitMqPaymentRequestPublisher>();
+                Console.WriteLine("[SUCCESS] RabbitMQ messaging enabled");
+            }
+            else
+            {
+                services.AddSingleton<IPaymentEventPublisher, NoOpPaymentEventPublisher>();
+                services.AddSingleton<IPaymentRequestPublisher, NoOpPaymentRequestPublisher>();
+                Console.WriteLine("[INFO] Messaging disabled - using NoOp publisher");
+            }
 
             // register IMiddleware implementations so UseMiddleware can resolve them
             services.AddTransient<ErrorMiddleware>();

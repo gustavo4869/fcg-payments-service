@@ -2,9 +2,14 @@ using Fcg.Payments.Api.Domain.Repositorio;
 using Fcg.Payments.Api.Infra.Events;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Fcg.Payments.Functions.Functions
 {
+    /// <summary>
+    /// Processa pagamentos pendentes consumindo mensagens da fila payment.pending.
+    /// Aplica a mesma lógica de processamento, mas via event-driven ao invés de polling.
+    /// </summary>
     public class PaymentProcessorFunction
     {
         private readonly ILogger<PaymentProcessorFunction> _logger;
@@ -12,41 +17,133 @@ namespace Fcg.Payments.Functions.Functions
         private readonly IEventStore _eventStore;
         private readonly Random _rnd = new();
 
-        public PaymentProcessorFunction(ILoggerFactory loggerFactory, IPagamentoRepository repo, IEventStore eventStore)
+        public PaymentProcessorFunction(
+            ILoggerFactory loggerFactory, 
+            IPagamentoRepository repo, 
+            IEventStore eventStore)
         {
             _logger = loggerFactory.CreateLogger<PaymentProcessorFunction>();
             _repo = repo;
             _eventStore = eventStore;
         }
 
-        // Timer trigger every 10 seconds
+        /// <summary>
+        /// Consume payment.pending messages from RabbitMQ and process them.
+        /// Queue name is configured via PaymentQueueName setting (default: payment.pending)
+        /// </summary>
         [Function("PaymentProcessorFunction")]
-        public async Task Run([TimerTrigger("*/10 * * * * *")] TimerInfo timer, FunctionContext ctx)
+        public async Task Run(
+            [RabbitMQTrigger("%PaymentQueueName%", ConnectionStringSetting = "RabbitMqConnection")] string message,
+            FunctionContext context)
         {
-            _logger.LogInformation("PaymentProcessorFunction running at: {Now}", DateTime.UtcNow);
+            var correlationId = context.BindingContext.BindingData.TryGetValue("CorrelationId", out var corrId)
+                ? corrId?.ToString()
+                : null;
 
-            var pendings = await _repo.GetPendingAsync(CancellationToken.None);
-            foreach (var p in pendings)
+            using var scope = _logger.BeginScope(new Dictionary<string, object>
             {
-                var success = _rnd.NextDouble() > 0.3;
-                if (success) p.MarcarSucesso(); else p.MarcarFalha();
+                ["CorrelationId"] = correlationId ?? "none"
+            });
 
-                await _repo.UpdateAsync(p, CancellationToken.None);
+            _logger.LogInformation(
+                "Processing payment from queue. CorrelationId={CorrelationId}",
+                correlationId);
 
-                var payload = System.Text.Json.JsonSerializer.Serialize(new
+            try
+            {
+                var request = JsonSerializer.Deserialize<PaymentPendingMessage>(message, new JsonSerializerOptions
                 {
-                    paymentId = p.Id,
-                    userId = p.UserId,
-                    gameId = p.GameId,
-                    amount = p.Amount,
-                    status = p.Status.ToString(),
-                    occurredAt = DateTime.UtcNow
+                    PropertyNameCaseInsensitive = true
                 });
 
-                await _eventStore.AppendAsync(p.Id, success ? "PaymentSucceeded" : "PaymentFailed", payload, null, CancellationToken.None);
+                if (request == null || request.PaymentId == Guid.Empty)
+                {
+                    _logger.LogWarning("Invalid message format or empty PaymentId. Message: {Message}", message);
+                    return;
+                }
 
-                _logger.LogInformation("Processed payment {PaymentId} result={Status}", p.Id, p.Status);
+                _logger.LogInformation(
+                    "Processing payment {PaymentId} for User={UserId}, Game={GameId}, Amount={Amount}",
+                    request.PaymentId, request.UserId, request.GameId, request.Amount);
+
+                // Check idempotency: se já foi processado, ignorar
+                var idempotencyKey = $"payment-processed:{request.PaymentId}";
+                var existingEvent = await _eventStore.GetByIdempotencyKeyAsync(idempotencyKey, context.CancellationToken);
+
+                if (existingEvent != null)
+                {
+                    _logger.LogInformation(
+                        "Payment {PaymentId} already processed (idempotent). Skipping.",
+                        request.PaymentId);
+                    return;
+                }
+
+                // Buscar pagamento no banco
+                var payment = await _repo.GetByIdAsync(request.PaymentId, context.CancellationToken);
+                if (payment == null)
+                {
+                    _logger.LogWarning("Payment {PaymentId} not found in database", request.PaymentId);
+                    return;
+                }
+
+                // Aplicar lógica de processamento (simula gateway de pagamento)
+                var success = _rnd.NextDouble() > 0.3; // 70% success rate
+                
+                if (success)
+                {
+                    payment.MarcarSucesso();
+                    _logger.LogInformation("Payment {PaymentId} processed successfully", request.PaymentId);
+                }
+                else
+                {
+                    payment.MarcarFalha();
+                    _logger.LogWarning("Payment {PaymentId} failed", request.PaymentId);
+                }
+
+                // Atualizar no banco
+                await _repo.UpdateAsync(payment, context.CancellationToken);
+
+                // Armazenar evento local
+                var eventPayload = JsonSerializer.Serialize(new
+                {
+                    paymentId = payment.Id,
+                    userId = payment.UserId,
+                    gameId = payment.GameId,
+                    amount = payment.Amount,
+                    status = payment.Status.ToString(),
+                    occurredAt = DateTime.UtcNow,
+                    correlationId
+                });
+
+                await _eventStore.AppendAsync(
+                    payment.Id,
+                    success ? "PaymentSucceeded" : "PaymentFailed",
+                    eventPayload,
+                    idempotencyKey: idempotencyKey,
+                    context.CancellationToken);
+
+                _logger.LogInformation(
+                    "Payment {PaymentId} completed with status {Status}",
+                    payment.Id, payment.Status);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize message. Message: {Message}", message);
+                throw; // Requeue message
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing payment. Message: {Message}", message);
+                throw; // Requeue message
             }
         }
+
+        private sealed record PaymentPendingMessage(
+            Guid PaymentId,
+            Guid UserId,
+            Guid GameId,
+            decimal Amount
+        );
     }
 }
+
