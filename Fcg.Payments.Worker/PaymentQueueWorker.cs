@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 using System.Text;
 using System.Text.Json;
 
@@ -31,47 +32,103 @@ public sealed class PaymentQueueWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("Payment Queue Worker is starting...");
+
         var queue = _cfg["PaymentQueueName"] ?? "payment.pending";
         var connStr = _cfg["RabbitMqConnection"] ?? throw new InvalidOperationException("RabbitMqConnection missing");
 
-        var factory = new ConnectionFactory
+        try
         {
-            Uri = new Uri(connStr),
-            AutomaticRecoveryEnabled = true,
-            NetworkRecoveryInterval = TimeSpan.FromSeconds(5)
-        };
+            var factory = new ConnectionFactory
+            {
+                Uri = new Uri(connStr),
+                AutomaticRecoveryEnabled = true,
+                NetworkRecoveryInterval = TimeSpan.FromSeconds(5)
+            };
 
-        _conn = await factory.CreateConnectionAsync();
-        _ch = await _conn.CreateChannelAsync();
-        await _ch.BasicQosAsync(0, 10, false);
+            // 1. Conectar ao RabbitMQ com retry
+            _logger.LogInformation("Connecting to RabbitMQ...");
+            _conn = await CreateConnectionWithRetryAsync(factory, stoppingToken);
+            _ch = await _conn.CreateChannelAsync();
 
-        var consumer = new AsyncEventingBasicConsumer(_ch);
-        consumer.ReceivedAsync += async (_, ea) =>
-        {
-            var body = ea.Body.ToArray();
-            var message = Encoding.UTF8.GetString(body);
-
+            // 2. Declarar a fila (cria se não existir)
+            _logger.LogInformation("Declaring queue '{QueueName}'...", queue);
             try
             {
-                await ProcessMessageAsync(message, stoppingToken);
-                await _ch.BasicAckAsync(ea.DeliveryTag, false);
+                await _ch.QueueDeclareAsync(
+                    queue: queue,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: null);
+                
+                _logger.LogInformation("Queue '{QueueName}' is ready (created or already exists)", queue);
             }
-            catch (JsonException ex)
+            catch (OperationInterruptedException ex) when (ex.ShutdownReason?.ReplyCode == 404)
             {
-                _logger.LogError(ex, "Invalid JSON. Nack without requeue.");
-                await _ch.BasicNackAsync(ea.DeliveryTag, false, requeue: false);
+                _logger.LogError(ex, "Queue '{QueueName}' does not exist and could not be created", queue);
+                throw;
             }
-            catch (Exception ex)
+            catch (OperationInterruptedException ex) when (ex.ShutdownReason?.ReplyCode == 406)
             {
-                _logger.LogError(ex, "Processing error. Nack with requeue.");
-                await _ch.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
+                _logger.LogError(ex, 
+                    "Queue '{QueueName}' exists with different configuration. " +
+                    "Please delete the queue manually or update the configuration.", 
+                    queue);
+                throw;
             }
-        };
 
-        await _ch.BasicConsumeAsync(queue: queue, autoAck: false, consumer: consumer);
-        _logger.LogInformation("Worker consuming queue {Queue}", queue);
+            // 3. Configurar QoS
+            await _ch.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false);
+            _logger.LogInformation("QoS configured: prefetchCount=1");
 
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+            // 4. Criar consumidor
+            var consumer = new AsyncEventingBasicConsumer(_ch);
+            consumer.ReceivedAsync += async (_, ea) =>
+            {
+                var body = ea.Body.ToArray();
+                var message = Encoding.UTF8.GetString(body);
+
+                try
+                {
+                    await ProcessMessageAsync(message, stoppingToken);
+                    await _ch.BasicAckAsync(ea.DeliveryTag, false);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError(ex, "Invalid JSON. Nack without requeue.");
+                    await _ch.BasicNackAsync(ea.DeliveryTag, false, requeue: false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Processing error. Nack with requeue.");
+                    await _ch.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
+                }
+            };
+
+            // 5. Começar a consumir
+            var consumerTag = await _ch.BasicConsumeAsync(queue: queue, autoAck: false, consumer: consumer);
+            _logger.LogInformation(
+                "Payment Queue Worker is now consuming from '{QueueName}' (tag: {ConsumerTag})", 
+                queue, consumerTag);
+
+            // 6. Manter worker vivo
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Payment Queue Worker is stopping gracefully...");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex, "Payment Queue Worker encountered a fatal error.");
+            throw;
+        }
+        finally
+        {
+            await DisposeResourcesAsync();
+            _logger.LogInformation("Payment Queue Worker stopped.");
+        }
     }
 
     private async Task ProcessMessageAsync(string message, CancellationToken ct)
@@ -130,6 +187,79 @@ public sealed class PaymentQueueWorker : BackgroundService
             ct);
 
         _logger.LogInformation("Payment {PaymentId} -> {Status}", payment.Id, payment.Status);
+    }
+
+    private async Task<IConnection> CreateConnectionWithRetryAsync(
+        ConnectionFactory factory,
+        CancellationToken cancellationToken,
+        int maxRetries = 10,
+        int initialDelaySeconds = 2)
+    {
+        int attempt = 0;
+        
+        while (attempt < maxRetries && !cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                attempt++;
+                var connection = await factory.CreateConnectionAsync(cancellationToken);
+                _logger.LogInformation(
+                    "Successfully connected to RabbitMQ on attempt {Attempt}/{MaxRetries}", 
+                    attempt, maxRetries);
+                return connection;
+            }
+            catch (BrokerUnreachableException ex)
+            {
+                var delaySeconds = initialDelaySeconds * Math.Pow(2, attempt - 1);
+                
+                _logger.LogWarning(ex, 
+                    "Failed to connect to RabbitMQ. Attempt {Attempt}/{MaxRetries}. " +
+                    "Retrying in {Delay} seconds...", 
+                    attempt, maxRetries, delaySeconds);
+                
+                if (attempt < maxRetries)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+                }
+            }
+            catch (AuthenticationFailureException ex)
+            {
+                _logger.LogError(ex, 
+                    "Authentication failed with RabbitMQ. Please check credentials.");
+                throw;
+            }
+        }
+        
+        throw new Exception($"Failed to connect to RabbitMQ after {maxRetries} attempts");
+    }
+
+    private async Task DisposeResourcesAsync()
+    {
+        if (_ch != null)
+        {
+            try
+            {
+                await _ch.CloseAsync();
+                _logger.LogDebug("Channel closed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error closing channel");
+            }
+        }
+
+        if (_conn != null)
+        {
+            try
+            {
+                await _conn.CloseAsync();
+                _logger.LogDebug("Connection closed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error closing connection");
+            }
+        }
     }
 
     public override void Dispose()

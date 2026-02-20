@@ -13,6 +13,14 @@ namespace Fcg.Payments.Api.Infra
 
         public PagamentoDbContext(DbContextOptions<PagamentoDbContext> opts) : base(opts) { }
 
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            // Suprimir warning sobre pending model changes em Production
+            // As migrations só são aplicadas em DEBUG mode
+            optionsBuilder.ConfigureWarnings(warnings =>
+                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Pagamento>(b =>
