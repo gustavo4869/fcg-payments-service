@@ -8,7 +8,7 @@
     "PaymentQueueName": "payment.pending"
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Host=34.39.196.255;Port=5432;Database=fcg_payments;Username=postgres;Password=081160Ec!;Timeout=30;Command Timeout=30;Keepalive=30;SSL Mode=Disable"
+    "DefaultConnection": "Host=127.0.0.1;Port=5432;Database=fcg_payments;Username=postgres;Password=081160Ec!;Trust Server Certificate=true;"
   },
   "DatabaseProvider": "PostgreSQL"
 }

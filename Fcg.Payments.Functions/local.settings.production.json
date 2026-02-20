@@ -9,6 +9,6 @@
     "DatabaseProvider": "PostgreSQL"
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Host=34.151.216.138;Port=5432;Database=fcg_payments;Username=postgres;Password=081160Ec!;SSL Mode=Prefer;Trust Server Certificate=true"
+    "DefaultConnection": "Host=127.0.0.1;Port=5432;Database=fcg_payments;Username=postgres;Password=081160Ec!;Trust Server Certificate=true"
   }
 }

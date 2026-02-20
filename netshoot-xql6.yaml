@@ -1,0 +1,12 @@
+﻿apiVersion: v1
+kind: Pod
+metadata:
+  name: netshoot-xql6
+  namespace: fcg
+spec:
+  nodeName: gke-fcg-cluster-e2-standard-2-e691727f-xql6
+  restartPolicy: Never
+  containers:
+  - name: netshoot
+    image: nicolaka/netshoot
+    command: ["/bin/sh", "-c", "sleep 36000"]
