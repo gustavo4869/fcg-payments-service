@@ -13,7 +13,7 @@ RUN dotnet publish "Fcg.Payments.Functions.csproj" -c Release -o /out /p:UseAppH
 
 # Use Azure Functions base image that runs the Functions host and the isolated worker
 # Use Functions runtime 4 tag which is available on MCR
-FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4 AS runtime
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated10.0 AS runtime
 WORKDIR /home/site/wwwroot
 
 # Copy published output to the function app root expected by the host

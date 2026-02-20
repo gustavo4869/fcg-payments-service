@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fcg-payments-worker
+  namespace: fcg
+  labels:
+    app: fcg-payments-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fcg-payments-worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: fcg-payments-worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: fcg-payments-worker
+          image: southamerica-east1-docker.pkg.dev/tech-challenge-fase-5-487617/fcg-docker/payments-worker:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: DatabaseProvider
+              valueFrom:
+                configMapKeyRef:
+                  name: payments-config
+                  key: DatabaseProvider
+            - name: PaymentQueueName
+              valueFrom:
+                configMapKeyRef:
+                  name: payments-config
+                  key: PaymentQueueName
+
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: fcg-secrets
+                  key: ConnectionStrings__DefaultConnection
+            - name: RabbitMqConnection
+              valueFrom:
+                secretKeyRef:
+                  name: fcg-secrets
+                  key: RabbitMqConnection
+
+          # opcional: ajuda a parar sem perder ack
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh","-c","sleep 10"]

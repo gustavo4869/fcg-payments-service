@@ -85,10 +85,12 @@ namespace Fcg.Payments.Api.Setup
 
         private static void ApplyMigrationsAndSeed(WebApplication app)
         {
+#if DEBUG
             using var scope = app.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<PagamentoDbContext>();
 
             db.Database.Migrate();
+#endif
         }
     }
 }

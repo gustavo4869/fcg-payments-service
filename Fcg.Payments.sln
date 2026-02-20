@@ -1,11 +1,18 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.1.11312.151 d18.0
+VisualStudioVersion = 18.1.11312.151
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fcg.Payments.Api", "Fcg.Payments.Api\Fcg.Payments.Api.csproj", "{9B11C1BA-8FC1-4CEA-B9B1-B663275F2DA3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fcg.Payments.Functions", "Fcg.Payments.Functions\Fcg.Payments.Functions.csproj", "{72DCA55E-8DBF-1328-F224-7B9B755FCF27}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fcg.Payments.Worker", "Fcg.Payments.Worker\Fcg.Payments.Worker.csproj", "{02C73140-F454-4204-8BA2-359EA5C38780}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "k8s", "k8s", "{D0B0D12B-0767-4494-8952-E4F3CC1C05D4}"
+	ProjectSection(SolutionItems) = preProject
+		payments-worker.deployment.yaml = payments-worker.deployment.yaml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,8 +48,23 @@ Global
 		{72DCA55E-8DBF-1328-F224-7B9B755FCF27}.Release|x64.Build.0 = Release|Any CPU
 		{72DCA55E-8DBF-1328-F224-7B9B755FCF27}.Release|x86.ActiveCfg = Release|Any CPU
 		{72DCA55E-8DBF-1328-F224-7B9B755FCF27}.Release|x86.Build.0 = Release|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Debug|x64.Build.0 = Debug|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Debug|x86.Build.0 = Debug|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Release|x64.ActiveCfg = Release|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Release|x64.Build.0 = Release|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Release|x86.ActiveCfg = Release|Any CPU
+		{02C73140-F454-4204-8BA2-359EA5C38780}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {ED647AC6-1305-4A19-BD9C-CB76DCA93539}
 	EndGlobalSection
 EndGlobal

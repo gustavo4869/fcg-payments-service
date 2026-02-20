@@ -1,0 +1,15 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.Hosting.Lifetime": "Information",
+      "Microsoft.EntityFrameworkCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=fcg_payments;Username=postgres;Password=YOUR_PASSWORD_HERE;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=20;"
+  },
+  "DatabaseProvider": "PostgreSQL",
+  "PaymentQueueName": "payment.pending",
+  "RabbitMqConnection": "amqp://username:password@rabbitmq-host:5672/"
+}
