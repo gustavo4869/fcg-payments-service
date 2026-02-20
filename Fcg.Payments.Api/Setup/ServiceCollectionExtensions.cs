@@ -78,9 +78,22 @@ namespace Fcg.Payments.Api.Setup
             }
 
             var connectionStringDb = cfg.GetConnectionString("DefaultConnection") ?? "Data Source=fcg.db";
+            var databaseProvider = cfg["DatabaseProvider"] ?? "SQLite";
             var jwtKey = cfg["Jwt:Key"];
 
-            services.AddDbContext<PagamentoDbContext>(o => o.UseSqlite(connectionStringDb));
+            services.AddDbContext<PagamentoDbContext>(options =>
+            {
+                if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+                {
+                    options.UseNpgsql(connectionStringDb);
+                    Console.WriteLine("[INFO] Using PostgreSQL database provider");
+                }
+                else
+                {
+                    options.UseSqlite(connectionStringDb);
+                    Console.WriteLine("[INFO] Using SQLite database provider");
+                }
+            });
 
             services.AddScoped<IPagamentoRepository, PagamentoRepository>();
             services.AddScoped<IEventStore, EfEventStore>();

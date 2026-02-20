@@ -1,0 +1,101 @@
+name: Deploy to GKE
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: tech-challenge-fase-5-487617
+  REGION: southamerica-east1
+  GKE_CLUSTER: fcg-cluster  # AJUSTE para o nome do seu cluster
+  REPOSITORY: fcg-payments
+  API_IMAGE: payments-api
+  FUNCTION_IMAGE: payments-function
+
+jobs:
+  setup-build-publish-deploy:
+    name: Setup, Build, Publish, and Deploy
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+        
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker to use gcloud as credential helper
+      run: |
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+    - name: Get GKE credentials
+      run: |
+        gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} --region ${{ env.REGION }}
+
+    - name: Build and Push Payments API
+      run: |
+        docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.API_IMAGE }}:${{ github.sha }} \
+          -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.API_IMAGE }}:latest \
+          -f Fcg.Payments.Api/Dockerfile .
+        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.API_IMAGE }}:${{ github.sha }}
+        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.API_IMAGE }}:latest
+
+    - name: Build and Push Payments Function
+      run: |
+        docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FUNCTION_IMAGE }}:${{ github.sha }} \
+          -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FUNCTION_IMAGE }}:latest \
+          -f Fcg.Payments.Functions/Dockerfile .
+        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FUNCTION_IMAGE }}:${{ github.sha }}
+        docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.FUNCTION_IMAGE }}:latest
+
+    - name: Deploy to GKE
+      run: |
+        # Apply namespace
+        kubectl apply -f k8s/namespace.yaml
+        
+        # Apply ConfigMap and Secrets
+        kubectl apply -f k8s/configmap.yaml
+        kubectl apply -f k8s/secrets.yaml
+        
+        # Deploy services
+        kubectl apply -f k8s/payments-api-deployment.yaml
+        kubectl apply -f k8s/payments-function-deployment.yaml
+        
+        # Apply HPA
+        kubectl apply -f k8s/hpa.yaml
+        
+        # Apply Ingress (optional)
+        # kubectl apply -f k8s/ingress.yaml
+        
+        # Restart deployments to pick up new images
+        kubectl rollout restart deployment/payments-api -n fcg-payments
+        kubectl rollout restart deployment/payments-function -n fcg-payments
+        
+        # Wait for rollout to complete
+        kubectl rollout status deployment/payments-api -n fcg-payments --timeout=5m
+        kubectl rollout status deployment/payments-function -n fcg-payments --timeout=5m
+
+    - name: Verify Deployment
+      run: |
+        echo "=== Pods ==="
+        kubectl get pods -n fcg-payments
+        
+        echo ""
+        echo "=== Services ==="
+        kubectl get svc -n fcg-payments
+        
+        echo ""
+        echo "=== Ingress ==="
+        kubectl get ingress -n fcg-payments

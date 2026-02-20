@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-function
+  namespace: fcg-payments
+  labels:
+    app: payments-function
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payments-function
+  template:
+    metadata:
+      labels:
+        app: payments-function
+        version: v1
+    spec:
+      containers:
+      - name: payments-function
+        image: southamerica-east1-docker.pkg.dev/tech-challenge-fase-5-487617/fcg-payments/payments-function:latest
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        env:
+        # ConfigMap values
+        - name: DatabaseProvider
+          valueFrom:
+            configMapKeyRef:
+              name: payments-config
+              key: DatabaseProvider
+        - name: FUNCTIONS_WORKER_RUNTIME
+          valueFrom:
+            configMapKeyRef:
+              name: payments-config
+              key: FUNCTIONS_WORKER_RUNTIME
+        - name: AzureWebJobsFeatureFlags
+          valueFrom:
+            configMapKeyRef:
+              name: payments-config
+              key: AzureWebJobsFeatureFlags
+        - name: PaymentQueueName
+          valueFrom:
+            configMapKeyRef:
+              name: payments-config
+              key: PaymentQueueName
+        
+        # Secret values
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: payments-secrets
+              key: ConnectionStrings__DefaultConnection
+        - name: RabbitMqConnection
+          valueFrom:
+            secretKeyRef:
+              name: payments-secrets
+              key: RabbitMqConnection
+        
+        # Empty storage for Azure Functions compatibility
+        - name: AzureWebJobsStorage
+          value: ""
+        
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        imagePullPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fcg-payments-function
+  namespace: fcg
+  labels:
+    app: fcg-payments-function
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: fcg-payments-function

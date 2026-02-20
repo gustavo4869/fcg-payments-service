@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
+    "RabbitMqConnection": "amqp://fcg:081160Ec!@<RABBITMQ_HOST>:5672",
+    "PaymentQueueName": "payment.pending",
+    "DatabaseProvider": "PostgreSQL"
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=34.151.216.138;Port=5432;Database=fcg_payments;Username=postgres;Password=081160Ec!;SSL Mode=Prefer;Trust Server Certificate=true"
+  }
+}

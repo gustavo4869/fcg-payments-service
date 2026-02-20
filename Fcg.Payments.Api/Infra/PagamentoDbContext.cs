@@ -24,6 +24,8 @@ namespace Fcg.Payments.Api.Infra
                 b.Property(x => x.DataCriacao);
             });
 
+            var isPostgreSQL = Database.IsNpgsql();
+
             modelBuilder.Entity<EventEntity>(b =>
             {
                 b.ToTable("Events");
@@ -33,7 +35,16 @@ namespace Fcg.Payments.Api.Infra
                 b.Property(x => x.IdempotencyKey).HasMaxLength(200);
                 b.HasIndex(x => x.AggregateId);
                 b.HasIndex(x => x.OccurredAt);
-                b.HasIndex(x => x.IdempotencyKey).IsUnique().HasFilter("IdempotencyKey IS NOT NULL");
+                
+                // PostgreSQL e SQLite usam sintaxe diferente para filtros de índice
+                if (isPostgreSQL)
+                {
+                    b.HasIndex(x => x.IdempotencyKey).IsUnique().HasFilter("\"IdempotencyKey\" IS NOT NULL");
+                }
+                else
+                {
+                    b.HasIndex(x => x.IdempotencyKey).IsUnique().HasFilter("IdempotencyKey IS NOT NULL");
+                }
             });
         }
     }

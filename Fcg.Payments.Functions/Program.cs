@@ -15,11 +15,12 @@ var host = new HostBuilder()
     {
         var cfg = ctx.Configuration;
         var conn = cfg.GetConnectionString("DefaultConnection") ?? cfg["ConnectionStrings:DefaultConnection"] ?? "Data Source=fcg.db";
+        var databaseProvider = cfg["DatabaseProvider"] ?? cfg["Values:DatabaseProvider"] ?? "SQLite";
 
         // Resolve relative Data Source path to absolute so Functions can open the sqlite file
         // Expected format: "Data Source=path/to/file.db" (case-insensitive)
         var lower = conn.ToLowerInvariant();
-        if (lower.StartsWith("data source="))
+        if (lower.StartsWith("data source=") && databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
         {
             var parts = conn.Split('=', 2);
             if (parts.Length == 2)
@@ -47,7 +48,19 @@ var host = new HostBuilder()
             }
         }
 
-        services.AddDbContext<PagamentoDbContext>(o => o.UseSqlite(conn));
+        services.AddDbContext<PagamentoDbContext>(options =>
+        {
+            if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+            {
+                options.UseNpgsql(conn);
+                Console.WriteLine("[INFO] Functions using PostgreSQL database provider");
+            }
+            else
+            {
+                options.UseSqlite(conn);
+                Console.WriteLine("[INFO] Functions using SQLite database provider");
+            }
+        });
 
         services.AddScoped<IPagamentoRepository, PagamentoRepository>();
         services.AddScoped<IEventStore, EfEventStore>();
