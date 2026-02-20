@@ -9,11 +9,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fcg.Payments.Functions", "F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fcg.Payments.Worker", "Fcg.Payments.Worker\Fcg.Payments.Worker.csproj", "{02C73140-F454-4204-8BA2-359EA5C38780}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "k8s", "k8s", "{D0B0D12B-0767-4494-8952-E4F3CC1C05D4}"
-	ProjectSection(SolutionItems) = preProject
-		payments-worker.deployment.yaml = payments-worker.deployment.yaml
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
